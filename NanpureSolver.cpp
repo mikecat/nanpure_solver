@@ -15,23 +15,22 @@ std::vector<NanpureBoard> solveNanpure(const NanpureBoard& board, int returnLimi
 	NanpureBoard currentBoard = board;
 	for (;;) {
 		int minr = 0, minc = 0, minn = 10;
+		bool allPut = true, hasError = false;
 		for (int r = 0; r < 9; r++) {
 			for (int c = 0; c < 9; c++) {
-				int n = currentBoard.getValidNumberCount(r, c);
-				if (n > 0 && n < minn) {
-					minr = r;
-					minc = c;
-					minn = n;
+				if (currentBoard.getNumber(r, c) == 0) {
+					allPut = false;
+					int n = currentBoard.getValidNumberCount(r, c);
+					if (n == 0) hasError = true;
+					if (n > 0 && n < minn) {
+						minr = r;
+						minc = c;
+						minn = n;
+					}
 				}
 			}
 		}
-		if (minn > 9) {
-			bool allPut = true;
-			for (int r = 0; r < 9; r++) {
-				for (int c = 0; c < 9; c++) {
-					if (currentBoard.getNumber(r, c) == 0) allPut = false;
-				}
-			}
+		if (minn > 9 || hasError) {
 			if (allPut) {
 				answers.push_back(currentBoard);
 				if (returnLimit > 0 && answers.size() >= (unsigned int)returnLimit) {
