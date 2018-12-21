@@ -15,6 +15,7 @@ public:
 	int getNumber(int row, int col) const;
 	bool isNumberValid(int row, int col, int num) const;
 	int getValidNumberCount(int row, int col) const;
+	int getValidNumbers(int* nums, int row, int col) const;
 };
 
 #endif

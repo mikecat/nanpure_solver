@@ -62,12 +62,21 @@ bool NanpureBoard::isNumberValid(int row, int col, int num) const {
 }
 
 int NanpureBoard::getValidNumberCount(int row, int col) const {
+	return getValidNumbers(0, row, col);
+}
+
+int NanpureBoard::getValidNumbers(int* nums, int row, int col) const {
 	if (getNumber(row, col) != 0) return 0;
 	int candidates = getCandidates(row, col);
 	int count = 0;
+	int num = 1;
 	while (candidates > 0) {
-		if (candidates & 1) count++;
+		if (candidates & 1) {
+			if (nums != 0) nums[count] = num;
+			count++;
+		}
 		candidates >>= 1;
+		num++;
 	}
 	return count;
 }
