@@ -235,6 +235,43 @@ const pdf_config_t& config) {
 }
 
 int main(int argc, char* argv[]) {
+	const static struct paper_t {
+		char name[24];
+		unsigned int width, height;
+	} papers[] = {
+		{"a0", 841, 1189}, {"a0_h", 1189, 841},
+		{"a1", 594, 841}, {"a1_h", 841, 594},
+		{"a2", 420, 594}, {"a2_h", 594, 420},
+		{"a3", 297, 420}, {"a3_h", 420, 297},
+		{"a4", 210, 297}, {"a4_h", 297, 210},
+		{"a5", 148, 210}, {"a5_h", 210, 148},
+		{"a6", 105, 148}, {"a6_h", 148, 105},
+		{"a7", 74, 105}, {"a7_h", 105, 74},
+		{"a8", 52, 74}, {"a8_h", 74, 52},
+		{"a9", 37, 52}, {"a9_h", 52, 37},
+		{"a10", 26, 37}, {"a10_h", 37, 26},
+
+		{"b0", 1030, 1456}, {"b0_h", 1456, 1030},
+		{"b1", 728, 1030}, {"b1_h", 1030, 728},
+		{"b2", 515, 728}, {"b2_h", 728, 515},
+		{"b3", 364, 515}, {"b3_h", 515, 364},
+		{"b4", 257, 364}, {"b4_h", 364, 257},
+		{"b5", 182, 257}, {"b5_h", 257, 182},
+		{"b6", 128, 182}, {"b6_h", 182, 128},
+		{"b7", 91, 128}, {"b7_h", 128, 91},
+		{"b8", 64, 91}, {"b8_h", 91, 64},
+		{"b9", 45, 64}, {"b9_h", 64, 45},
+		{"b10", 32, 45}, {"b10_h", 45, 32},
+
+		{"postcard", 100, 148}, {"postcard_h", 148, 100},
+		{"dpostcard", 148, 200}, {"dpostcard_h", 200, 148},
+		{"dsc", 89, 119}, {"dsc_h", 119, 89},
+		{"l", 89, 127}, {"l_h", 127, 89},
+		{"2l", 127, 178}, {"2l_h", 178, 127},
+
+		{"dummy", 0, 0}
+	};
+
 	uint32_t a = 0, b = 0, c = 0, d  = 0;
 	bool seed_set = false;
 	output_format_t output_format = NORMAL;
@@ -321,6 +358,23 @@ int main(int argc, char* argv[]) {
 		READ_NONNEGATIVE(marginX, "%lf", "horizontal margin for PDF")
 		READ_NONNEGATIVE(marginY, "%lf", "vertical margin for PDF")
 #undef READ_NONNEGATIVE
+		} else if (strcmp(argv[i], "--pageSize") == 0) {
+			if (++i < argc) {
+				bool found = false;
+				for (int j = 0; papers[j].width > 0; j++) {
+					if (strcmp(argv[i], papers[j].name) == 0) {
+						config.pageWidth = papers[j].width;
+						config.pageHeight = papers[j].height;
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					printf("unknown page size name %s\n", argv[i]);
+				}
+			} else {
+				puts("no page size name");
+			}
 		} else {
 			printf("unknown parameter %s\n", argv[i]);
 			return 1;
