@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-O2 -Wall -Wextra -pedantic -std=c++11
+CXXFLAGS=-O2 -Wall -Wextra -pedantic -std=c++11 -DUSE_ZLIB
 LDFLAGS=-s
 
 .PHONY: all
@@ -12,7 +12,7 @@ NanpureGeneratorDriver: NanpureBoard.o NanpureSolver.o NanpureGenerator.o Nanpur
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 NanpureGeneratorXorshiftDriver: NanpureBoard.o NanpureSolver.o NanpureGenerator.o NanpureGeneratorXorshiftDriver.o
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CXX) $(LDFLAGS) -o $@ $^ -lz
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $^

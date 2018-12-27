@@ -5,6 +5,9 @@
 #include <cinttypes>
 #include <string>
 #include <vector>
+#ifdef USE_ZLIB
+#include <zlib.h>
+#endif
 #include "NanpureGenerator.h"
 #include "NanpureBoard.h"
 
@@ -66,6 +69,9 @@ struct pdf_config_t {
 	bool useInnerMarginMulti;
 	unsigned int numProblemsPerPageX;
 	unsigned int numProblemsPerPageY;
+#ifdef USE_ZLIB
+	bool doCompress;
+#endif
 
 	pdf_config_t() :
 		pageWidth(210.0), pageHeight(297.0),
@@ -73,7 +79,11 @@ struct pdf_config_t {
 		blockSize(15.0),
 		innerMarginX(0.0), innerMarginY(0.0), innerMarginMulti(2.0),
 		useInnerMarginMulti(true),
-		numProblemsPerPageX(1), numProblemsPerPageY(1) {}
+		numProblemsPerPageX(1), numProblemsPerPageY(1)
+#ifdef USE_ZLIB
+		, doCompress(false)
+#endif
+	{}
 };
 
 std::string double_to_string(double v) {
@@ -87,6 +97,34 @@ std::string uint_to_string(unsigned int v) {
 	snprintf(str, sizeof(str), "%u", v);
 	return str;
 }
+
+#ifdef USE_ZLIB
+std::string compress_string(const std::string data) {
+	std::string result;
+	z_stream zs;
+	const int BUFFER_SIZE = 1024;
+	char outputBuffer[BUFFER_SIZE];
+	zs.zalloc = Z_NULL;
+	zs.zfree = Z_NULL;
+	zs.opaque = Z_NULL;
+	if (deflateInit(&zs, 9) != Z_OK) throw "deflateInit failed";
+	zs.next_in = (Bytef*)data.data();
+	zs.avail_in = data.size();
+	zs.next_out = (Bytef*)outputBuffer;
+	zs.avail_out = BUFFER_SIZE;
+	for (;;) {
+		int ret = deflate(&zs, Z_FINISH);
+		if (ret != Z_STREAM_END && ret != Z_OK && ret != Z_STREAM_END) throw "deflate failed";
+		int gotSize = BUFFER_SIZE - zs.avail_out;
+		result.append(outputBuffer, gotSize);
+		if (ret == Z_STREAM_END) break;
+		zs.next_out = (Bytef*)outputBuffer;
+		zs.avail_out = BUFFER_SIZE;
+	}
+	if (deflateEnd(&zs) != Z_OK) throw "deflateEnd failed";
+	return result;
+}
+#endif
 
 std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedString,
 const pdf_config_t& config) {
@@ -141,6 +179,9 @@ const pdf_config_t& config) {
 	}
 
 	std::string pdfData = "%PDF-1.4\r\n";
+#ifdef USE_ZLIB
+	if (config.doCompress) pdfData += "%\xe5\x9c\xa7\xe7\xb8\xae\r\n";
+#endif
 	std::vector<std::string> pdfContents;
 
 	std::vector<std::string> drawScripts;
@@ -227,9 +268,17 @@ const pdf_config_t& config) {
 		pdfContents.push_back(uint_to_string(i * 2 + 5) +
 			" 0 obj\r\n<</Resources 2 0 R/Type/Page/Parent 4 0 R/Contents[" +
 			uint_to_string(i * 2 + 5 + 1) + " 0 R]>>\r\nendobj\r\n");
+		std::string drawScript = drawScripts[i];
+		std::string option = "";
+#ifdef USE_ZLIB
+		if (config.doCompress) {
+			drawScript = compress_string(drawScript);
+			option = "/Filter/FlateDecode";
+		}
+#endif
 		pdfContents.push_back(uint_to_string(i * 2 + 5 + 1) +
-			" 0 obj\r\n<</Length " + uint_to_string(drawScripts[i].size()) +
-			">>\r\nstream\r\n" + drawScripts[i] + "\r\nendstream\r\nendobj\r\n");
+			" 0 obj\r\n<</Length " + uint_to_string(drawScript.size()) + option +
+			">>\r\nstream\r\n" + drawScript + "\r\nendstream\r\nendobj\r\n");
 	}
 
 	std::vector<size_t> objStarts;
@@ -436,6 +485,10 @@ int main(int argc, char* argv[]) {
 				puts("no vertical inner margin for PDF");
 				return 1;
 			}
+#ifdef USE_ZLIB
+		} else if (strcmp(argv[i], "--doCompress") == 0) {
+			config.doCompress = true;
+#endif
 		} else {
 			printf("unknown parameter %s\n", argv[i]);
 			return 1;
