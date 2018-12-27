@@ -60,13 +60,14 @@ struct pdf_config_t {
 	double normalLineWidth;
 	double numberLineWidth;
 	double blockSize;
+	double innerMarginMulti;
 	unsigned int numProblemsPerPageX;
 	unsigned int numProblemsPerPageY;
 
 	pdf_config_t() :
 		pageWidth(210.0), pageHeight(297.0),
 		boldLineWidth(2.0), normalLineWidth(0.7), numberLineWidth(1.0),
-		blockSize(15.0),
+		blockSize(15.0), innerMarginMulti(2.0),
 		numProblemsPerPageX(1), numProblemsPerPageY(1) {}
 };
 
@@ -114,12 +115,17 @@ const pdf_config_t& config) {
 	const double normalLineWidth = config.normalLineWidth;
 	const double numberLineWidth = config.numberLineWidth;
 	const double blockSize = config.blockSize;
+	const double innerMarginMulti = config.innerMarginMulti;
 	const unsigned int numProblemsPerPageX = config.numProblemsPerPageX;
 	const unsigned int numProblemsPerPageY = config.numProblemsPerPageY;
 
-	double pageWidthPerProblem = pageWidth / numProblemsPerPageX;
-	double pageHeightPerProblem = pageHeight / numProblemsPerPageY;
 	double problemSize = blockSize * 9;
+	double allMarginX = pageWidth - problemSize * numProblemsPerPageX;
+	double allMarginY = pageHeight - problemSize * numProblemsPerPageY;
+	double outerMarginX = allMarginX / (2.0 + innerMarginMulti * (numProblemsPerPageX - 1));
+	double outerMarginY = allMarginY / (2.0 + innerMarginMulti * (numProblemsPerPageY - 1));
+	double innerMarginX = outerMarginX * innerMarginMulti;
+	double innerMarginY = outerMarginY * innerMarginMulti;
 
 	std::string pdfData = "%PDF-1.4\r\n";
 	std::vector<std::string> pdfContents;
@@ -132,9 +138,8 @@ const pdf_config_t& config) {
 			drawScript = "q\r\n1 0 0 1 0 0 cm\r\n0 G\r\n";
 		}
 
-		double startX = pageWidthPerProblem * xIndex + (pageWidthPerProblem - problemSize) / 2.0;
-		double startY = pageHeightPerProblem * (numProblemsPerPageY - 1 - yIndex) +
-			(pageHeightPerProblem - problemSize) / 2.0;
+		double startX = outerMarginX + xIndex * (problemSize + innerMarginX);
+		double startY = outerMarginY + (numProblemsPerPageY - 1 - yIndex) * (problemSize + innerMarginY);
 		std::string x1Str = double_to_string((startX - boldLineWidth / 2.0) * multi);
 		std::string x2Str = double_to_string((startX + problemSize + boldLineWidth / 2.0) * multi);
 		std::string y1Str = double_to_string((startY) * multi);
@@ -383,6 +388,8 @@ int main(int argc, char* argv[]) {
 				puts("no page size name");
 				return 1;
 			}
+		} else if (strcmp(argv[i], "--noInnerDoubleMargin") == 0) {
+			config.innerMarginMulti = 1;
 		} else {
 			printf("unknown parameter %s\n", argv[i]);
 			return 1;
@@ -396,8 +403,8 @@ int main(int argc, char* argv[]) {
 	if (marginX >= 0 || marginY >= 0) {
 		if (marginX < 0) marginX = 0;
 		if (marginY < 0) marginY = 0;
-		double allMarginX = marginX * 2 * config.numProblemsPerPageX;
-		double allMarginY = marginY * 2 * config.numProblemsPerPageY;
+		double allMarginX = marginX * (2 + config.innerMarginMulti * (config.numProblemsPerPageX - 1));
+		double allMarginY = marginY * (2 + config.innerMarginMulti * (config.numProblemsPerPageY - 1));
 		if (auto_page_size) {
 			config.pageWidth = config.blockSize * 9 * config.numProblemsPerPageX + allMarginX;
 			config.pageHeight = config.blockSize * 9 * config.numProblemsPerPageY + allMarginY;
