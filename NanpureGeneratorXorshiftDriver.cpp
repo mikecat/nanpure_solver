@@ -59,7 +59,13 @@ std::string double_to_string(double v) {
 	return str;
 }
 
-std::string create_pdf(const NanpureBoard& nb, const char* seedString) {
+std::string uint_to_string(unsigned int v) {
+	char str[512];
+	snprintf(str, sizeof(str), "%u", v);
+	return str;
+}
+
+std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedString) {
 	const static signed char numData1[] =
 		{55, 20, -'m', 45, 85, -'l', 0};
 	const static signed char numData2[] =
@@ -93,66 +99,83 @@ std::string create_pdf(const NanpureBoard& nb, const char* seedString) {
 
 	std::string pdfData = "%PDF-1.4\r\n";
 	std::vector<std::string> pdfContents;
-	std::string drawScript = "q\r\n1 0 0 1 0 0 cm\r\n0 G\r\n";
 
-	double startX = (pageWidth - blockSize * 9) / 2.0;
-	double startY = (pageHeight - blockSize * 9) / 2.0;
-	std::string x1Str = double_to_string((startX - boldLineWidth / 2.0) * multi);
-	std::string x2Str = double_to_string((startX + blockSize * 9 + boldLineWidth / 2.0) * multi);
-	std::string y1Str = double_to_string((startY) * multi);
-	std::string y2Str = double_to_string((startY + blockSize * 9) * multi);
-	drawScript += double_to_string(normalLineWidth * multi) + " w\r\n";
-	for (int i = 0; i <= 9; i++) {
-		if (i % 3 == 0) continue;
-		std::string xStr = double_to_string((startX + blockSize * i) * multi);
-		std::string yStr = double_to_string((startY + blockSize * i) * multi);
-		drawScript += x1Str + " " + yStr + " m " + x2Str + " " + yStr + " l S\r\n";
-		drawScript += xStr + " " + y1Str + " m " + xStr + " " + y2Str + " l S\r\n";
-	}
-	drawScript += double_to_string(boldLineWidth * multi) + " w\r\n";
-	for (int i = 0; i <= 9; i += 3) {
-		std::string xStr = double_to_string((startX + blockSize * i) * multi);
-		std::string yStr = double_to_string((startY + blockSize * i) * multi);
-		drawScript += x1Str + " " + yStr + " m " + x2Str + " " + yStr + " l S\r\n";
-		drawScript += xStr + " " + y1Str + " m " + xStr + " " + y2Str + " l S\r\n";
-	}
+	std::vector<std::string> drawScripts;
+	for (std::vector<NanpureBoard>::const_iterator it = nbs.begin(); it != nbs.end(); it++) {
+		std::string drawScript = "q\r\n1 0 0 1 0 0 cm\r\n0 G\r\n";
 
-	drawScript += double_to_string(numberLineWidth * multi) + " w\r\n";
-	for (int y = 0; y < 9; y++) {
-		for (int x = 0; x < 9; x++) {
-			const signed char* numDraw = numData[nb.getNumber(x, 8 - y)];
-			if (numDraw != NULL) {
-				double offsetX = startX + blockSize * x;
-				double offsetY = startY + blockSize * (y + 1);
-				bool isX = true;
-				while (*numDraw != 0) {
-					if (*numDraw > 0) {
-						double offset = blockSize * (*numDraw) / 100.0;
-						drawScript += double_to_string((isX ? offsetX + offset : offsetY - offset) * multi);
-						isX = !isX;
-					} else {
-						drawScript += (char)(-*numDraw);
+		double startX = (pageWidth - blockSize * 9) / 2.0;
+		double startY = (pageHeight - blockSize * 9) / 2.0;
+		std::string x1Str = double_to_string((startX - boldLineWidth / 2.0) * multi);
+		std::string x2Str = double_to_string((startX + blockSize * 9 + boldLineWidth / 2.0) * multi);
+		std::string y1Str = double_to_string((startY) * multi);
+		std::string y2Str = double_to_string((startY + blockSize * 9) * multi);
+		drawScript += double_to_string(normalLineWidth * multi) + " w\r\n";
+		for (int i = 0; i <= 9; i++) {
+			if (i % 3 == 0) continue;
+			std::string xStr = double_to_string((startX + blockSize * i) * multi);
+			std::string yStr = double_to_string((startY + blockSize * i) * multi);
+			drawScript += x1Str + " " + yStr + " m " + x2Str + " " + yStr + " l S\r\n";
+			drawScript += xStr + " " + y1Str + " m " + xStr + " " + y2Str + " l S\r\n";
+		}
+		drawScript += double_to_string(boldLineWidth * multi) + " w\r\n";
+		for (int i = 0; i <= 9; i += 3) {
+			std::string xStr = double_to_string((startX + blockSize * i) * multi);
+			std::string yStr = double_to_string((startY + blockSize * i) * multi);
+			drawScript += x1Str + " " + yStr + " m " + x2Str + " " + yStr + " l S\r\n";
+			drawScript += xStr + " " + y1Str + " m " + xStr + " " + y2Str + " l S\r\n";
+		}
+
+		drawScript += double_to_string(numberLineWidth * multi) + " w\r\n";
+		for (int y = 0; y < 9; y++) {
+			for (int x = 0; x < 9; x++) {
+				const signed char* numDraw = numData[it->getNumber(x, 8 - y)];
+				if (numDraw != NULL) {
+					double offsetX = startX + blockSize * x;
+					double offsetY = startY + blockSize * (y + 1);
+					bool isX = true;
+					while (*numDraw != 0) {
+						if (*numDraw > 0) {
+							double offset = blockSize * (*numDraw) / 100.0;
+							drawScript += double_to_string((isX ? offsetX + offset : offsetY - offset) * multi);
+							isX = !isX;
+						} else {
+							drawScript += (char)(-*numDraw);
+						}
+						drawScript += ' ';
+						numDraw++;
 					}
-					drawScript += ' ';
-					numDraw++;
+					drawScript += "S\r\n";
 				}
-				drawScript += "S\r\n";
 			}
 		}
+
+		drawScript += "Q";
+		drawScripts.push_back(drawScript);
 	}
 
-	drawScript += "Q\r\n";
-	char drawScriptLength[16];
-	snprintf(drawScriptLength, sizeof(drawScriptLength), "%u", (unsigned int)drawScript.size());
-	pdfContents.push_back("1 0 obj\r\n<</Length " + std::string(drawScriptLength) +
-		">>\r\nstream\r\n" + drawScript + "endstream\r\nendobj\r\n");
-	pdfContents.push_back("2 0 obj\r\n<</ProcSet[/PDF/Text/ImageC/ImageB/ImageI]>>\r\nendobj\r\n");
-	pdfContents.push_back("3 0 obj\r\n<</Resources 2 0 R/Type/Page/Parent 4 0 R/Contents[1 0 R]>>\r\nendobj\r\n");
-	pdfContents.push_back("4 0 obj\r\n<</Type/Pages/Count 1/Kids[3 0 R]/MediaBox[0 0 " +
-		double_to_string(pageWidth * multi) + " " + double_to_string(pageHeight * multi) + "]>>\r\nendobj\r\n");
-	pdfContents.push_back("5 0 obj\r\n<</Pages 4 0 R/Type/Catalog>>\r\nendobj\r\n");
-	pdfContents.push_back("6 0 obj\r\n<</Title(Nanpure)/Subject(" +
+	pdfContents.push_back("1 0 obj\r\n<</Title(Nanpure)/Subject(" +
 		std::string(seedString) + ")>>\r\nendobj\r\n");
+	pdfContents.push_back("2 0 obj\r\n<</ProcSet[/PDF/Text/ImageC/ImageB/ImageI]>>\r\nendobj\r\n");
+	pdfContents.push_back("3 0 obj\r\n<</Pages 4 0 R/Type/Catalog>>\r\nendobj\r\n");
+	std::string pages = "4 0 obj\r\n<</Type/Pages/Count " +
+		uint_to_string(drawScripts.size()) + "/Kids[";
+	for (size_t i = 0; i < drawScripts.size(); i++) {
+		if (i > 0) pages += ' ';
+		pages += uint_to_string(i * 2 + 5) + " 0 R";
+	}
+	pages += "]/MediaBox[0 0 " + double_to_string(pageWidth * multi) + " " +
+			double_to_string(pageHeight * multi) + "]>>\r\nendobj\r\n";
+	pdfContents.push_back(pages);
+
+	for (size_t i = 0; i < drawScripts.size(); i++) {
+		pdfContents.push_back(uint_to_string(i * 2 + 5) +
+			" 0 obj\r\n<</Resources 2 0 R/Type/Page/Parent 4 0 R/Contents[" +
+			uint_to_string(i * 2 + 5 + 1) + " 0 R]>>\r\nendobj\r\n");
+		pdfContents.push_back(uint_to_string(i * 2 + 5 + 1) +
+			" 0 obj\r\n<</Length " + uint_to_string(drawScripts[i].size()) +
+			">>\r\nstream\r\n" + drawScripts[i] + "\r\nendstream\r\nendobj\r\n");
+	}
 
 	std::vector<size_t> objStarts;
 	for (std::vector<std::string>::const_iterator it = pdfContents.begin();
@@ -161,17 +184,15 @@ std::string create_pdf(const NanpureBoard& nb, const char* seedString) {
 		pdfData += *it;
 	}
 	size_t xrefStart = pdfData.size();
-	pdfData += "xref\r\n0 7\r\n0000000000 65535 f\r\n";
+	pdfData += "xref\r\n0 " + uint_to_string(objStarts.size() + 1) + "\r\n0000000000 65535 f\r\n";
 	for (size_t i = 0; i < objStarts.size(); i++) {
 		char objStartStr[32];
 		snprintf(objStartStr, sizeof(objStartStr), "%010u 00000 n\r\n", (unsigned int)objStarts[i]);
 		pdfData += objStartStr;
 	}
-	pdfData += "trailer\r\n<</Root 5 0 R/Info 6 0 R/Size 6>>\r\nstartxref\r\n";
-	char startxrefStr[16];
-	snprintf(startxrefStr, sizeof(startxrefStr), "%u", (unsigned int)xrefStart);
-	pdfData += startxrefStr;
-	pdfData += "\r\n%%EOF\r\n";
+	pdfData += "trailer\r\n<</Root 3 0 R/Info 1 0 R/Size " +
+		uint_to_string(objStarts.size()) + ">>\r\nstartxref\r\n";
+	pdfData += uint_to_string(xrefStart) + "\r\n%%EOF\r\n";
 
 	return pdfData;
 }
@@ -180,6 +201,7 @@ int main(int argc, char* argv[]) {
 	uint32_t a = 0, b = 0, c = 0, d  = 0;
 	bool seed_set = false;
 	output_format_t output_format = NORMAL;
+	unsigned int output_num = 1;
 	char* output_file = NULL;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--seed") == 0 || strcmp(argv[i], "-s") == 0) {
@@ -213,6 +235,16 @@ int main(int argc, char* argv[]) {
 				puts("no output file name");
 				return 1;
 			}
+		} else if (strcmp(argv[i], "--outnum") == 0 || strcmp(argv[i], "-n") == 0) {
+			if (++i < argc) {
+				if (sscanf(argv[i], "%u", &output_num) != 1 || output_num <= 0) {
+					puts("invalid output number");
+					return 1;
+				}
+			} else {
+				puts("no output file name");
+				return 1;
+			}
 		}
 	}
 	if (!seed_set) {
@@ -229,7 +261,10 @@ int main(int argc, char* argv[]) {
 	char seedString[64];
 	snprintf(seedString, sizeof(seedString),
 		"seed = %08" PRIX32 "-%08" PRIX32 "-%08" PRIX32 "-%08" PRIX32, a, b, c, d);
-	NanpureBoard nb = generateNanpure(rng);
+	std::vector<NanpureBoard> nbs;
+	for (unsigned int i = 0; i < output_num; i++) {
+		nbs.push_back(generateNanpure(rng));
+	}
 	FILE* fp;
 	if (output_file != NULL) {
 		fp = fopen(output_file, output_format == PDF ? "wb" : "w");
@@ -242,27 +277,35 @@ int main(int argc, char* argv[]) {
 	}
 	switch (output_format) {
 		case NORMAL:
-			fprintf(fp, "%s\n\n", seedString);
-			for (int i = 0; i < 9; i++) {
-				fprintf(fp, "%d", nb.getNumber(i, 0));
-				for (int j = 1; j < 9; j++) {
-					fprintf(fp, " %d", nb.getNumber(i, j));
+			fprintf(fp, "%s\n", seedString);
+			for (std::vector<NanpureBoard>::const_iterator it = nbs.begin();
+			it != nbs.end(); it++) {
+				fputc('\n', fp);
+				for (int i = 0; i < 9; i++) {
+					fprintf(fp, "%d", it->getNumber(i, 0));
+					for (int j = 1; j < 9; j++) {
+						fprintf(fp, " %d", it->getNumber(i, j));
+					}
+					fputc('\n', fp);
+				}
+			}
+			break;
+		case ONELINE:
+			fprintf(fp, "%s\n", seedString);
+			for (std::vector<NanpureBoard>::const_iterator it = nbs.begin();
+			it != nbs.end(); it++) {
+				fputc('\n', fp);
+				for (int i = 0; i < 9; i++) {
+					for (int j = 0; j < 9; j++) {
+						fprintf(fp, "%d", it->getNumber(i, j));
+					}
 				}
 				fputc('\n', fp);
 			}
 			break;
-		case ONELINE:
-			fprintf(fp, "%s\n\n", seedString);
-			for (int i = 0; i < 9; i++) {
-				for (int j = 0; j < 9; j++) {
-					fprintf(fp, "%d", nb.getNumber(i, j));
-				}
-			}
-			fputc('\n', fp);
-			break;
 		case PDF:
 			{
-				std::string pdfData = create_pdf(nb, seedString);
+				std::string pdfData = create_pdf(nbs, seedString);
 				fwrite(pdfData.data(), 1, pdfData.size(), fp);
 			}
 	}
