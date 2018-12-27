@@ -53,6 +53,23 @@ enum output_format_t {
 	PDF
 };
 
+struct pdf_config_t {
+	double pageWidth;
+	double pageHeight;
+	double boldLineWidth;
+	double normalLineWidth;
+	double numberLineWidth;
+	double blockSize;
+	unsigned int numProblemsPerPageX;
+	unsigned int numProblemsPerPageY;
+
+	pdf_config_t() :
+		pageWidth(210.0), pageHeight(297.0),
+		boldLineWidth(2.0), normalLineWidth(0.7), numberLineWidth(1.0),
+		blockSize(15.0),
+		numProblemsPerPageX(1), numProblemsPerPageY(1) {}
+};
+
 std::string double_to_string(double v) {
 	char str[512];
 	snprintf(str, sizeof(str), "%.3f", v);
@@ -65,7 +82,8 @@ std::string uint_to_string(unsigned int v) {
 	return str;
 }
 
-std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedString) {
+std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedString,
+const pdf_config_t& config) {
 	const static signed char numData1[] =
 		{55, 20, -'m', 45, 85, -'l', 0};
 	const static signed char numData2[] =
@@ -90,26 +108,37 @@ std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedStr
 
 	const double multi = 72 / 25.4; // length[mm] * multi = coordinate value
 	// [mm]
-	double pageWidth = 210.0;
-	double pageHeight = 297.0;
-	double boldLineWidth = 2.0;
-	double normalLineWidth = 0.7;
-	double numberLineWidth = 1.0;
-	double blockSize = 15.0;
+	const double pageWidth = config.pageWidth;
+	const double pageHeight = config.pageHeight;
+	const double boldLineWidth = config.boldLineWidth;
+	const double normalLineWidth = config.normalLineWidth;
+	const double numberLineWidth = config.numberLineWidth;
+	const double blockSize = config.blockSize;
+	const unsigned int numProblemsPerPageX = config.numProblemsPerPageX;
+	const unsigned int numProblemsPerPageY = config.numProblemsPerPageY;
+
+	double pageWidthPerProblem = pageWidth / numProblemsPerPageX;
+	double pageHeightPerProblem = pageHeight / numProblemsPerPageY;
+	double problemSize = blockSize * 9;
 
 	std::string pdfData = "%PDF-1.4\r\n";
 	std::vector<std::string> pdfContents;
 
 	std::vector<std::string> drawScripts;
+	std::string drawScript;
+	unsigned int xIndex = 0, yIndex = 0;
 	for (std::vector<NanpureBoard>::const_iterator it = nbs.begin(); it != nbs.end(); it++) {
-		std::string drawScript = "q\r\n1 0 0 1 0 0 cm\r\n0 G\r\n";
+		if (xIndex == 0 && yIndex == 0) {
+			drawScript = "q\r\n1 0 0 1 0 0 cm\r\n0 G\r\n";
+		}
 
-		double startX = (pageWidth - blockSize * 9) / 2.0;
-		double startY = (pageHeight - blockSize * 9) / 2.0;
+		double startX = pageWidthPerProblem * xIndex + (pageWidthPerProblem - problemSize) / 2.0;
+		double startY = pageHeightPerProblem * (numProblemsPerPageY - 1 - yIndex) +
+			(pageHeightPerProblem - problemSize) / 2.0;
 		std::string x1Str = double_to_string((startX - boldLineWidth / 2.0) * multi);
-		std::string x2Str = double_to_string((startX + blockSize * 9 + boldLineWidth / 2.0) * multi);
+		std::string x2Str = double_to_string((startX + problemSize + boldLineWidth / 2.0) * multi);
 		std::string y1Str = double_to_string((startY) * multi);
-		std::string y2Str = double_to_string((startY + blockSize * 9) * multi);
+		std::string y2Str = double_to_string((startY + problemSize) * multi);
 		drawScript += double_to_string(normalLineWidth * multi) + " w\r\n";
 		for (int i = 0; i <= 9; i++) {
 			if (i % 3 == 0) continue;
@@ -150,8 +179,16 @@ std::string create_pdf(const std::vector<NanpureBoard>& nbs, const char* seedStr
 			}
 		}
 
-		drawScript += "Q";
-		drawScripts.push_back(drawScript);
+		if (++xIndex >= numProblemsPerPageX) {
+			xIndex = 0;
+			if (++yIndex >= numProblemsPerPageY) {
+				yIndex = 0;
+			}
+		}
+		if ((xIndex == 0 && yIndex == 0) || it + 1 == nbs.end()) {
+			drawScript += "Q";
+			drawScripts.push_back(drawScript);
+		}
 	}
 
 	pdfContents.push_back("1 0 obj\r\n<</Title(Nanpure)/Subject(" +
@@ -203,6 +240,9 @@ int main(int argc, char* argv[]) {
 	output_format_t output_format = NORMAL;
 	unsigned int output_num = 1;
 	char* output_file = NULL;
+	pdf_config_t config;
+	bool auto_line_width = false;
+	double marginX = -1, marginY = -1;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--seed") == 0 || strcmp(argv[i], "-s") == 0) {
 			if (++i < argc) {
@@ -245,7 +285,64 @@ int main(int argc, char* argv[]) {
 				puts("no output file name");
 				return 1;
 			}
+#define READ_POSITIVE(param, format, desc) \
+		} else if (strcmp(argv[i], "--" #param) == 0) { \
+			if (++i < argc) { \
+				if (sscanf(argv[i], format, &config.param) != 1 || config.param <= 0) { \
+					puts("invalid " desc); \
+					return 1; \
+				} \
+			} else { \
+				puts("no " desc); \
+				return 1; \
+			}
+		READ_POSITIVE(pageWidth, "%lf", "PDF page width")
+		READ_POSITIVE(pageHeight, "%lf", "PDF page height")
+		READ_POSITIVE(boldLineWidth, "%lf", "bold line width for PDF")
+		READ_POSITIVE(normalLineWidth, "%lf", "normal line width for PDF")
+		READ_POSITIVE(numberLineWidth, "%lf", "number line width for PDF")
+		READ_POSITIVE(blockSize, "%lf", "one block size for PDF")
+		READ_POSITIVE(numProblemsPerPageX, "%u", "number of columns of problems per one page of PDF")
+		READ_POSITIVE(numProblemsPerPageY, "%u", "number of rows of problems per one page of PDF")
+#undef READ_POSITIVE
+		} else if (strcmp(argv[i], "--autoLineWidth") == 0) {
+			auto_line_width = true;
+#define READ_NONNEGATIVE(variable, format, desc) \
+		} else if (strcmp(argv[i], "--" #variable) == 0) { \
+			if (++i < argc) { \
+				if (sscanf(argv[i], format, &variable) != 1 || variable < 0) { \
+					puts("invalid " desc); \
+					return 1; \
+				} \
+			} else { \
+				puts("no " desc); \
+				return 1; \
+			}
+		READ_NONNEGATIVE(marginX, "%lf", "horizontal margin for PDF")
+		READ_NONNEGATIVE(marginY, "%lf", "vertical margin for PDF")
+#undef READ_NONNEGATIVE
+		} else {
+			printf("unknown parameter %s\n", argv[i]);
+			return 1;
 		}
+	}
+	if (marginX >= 0 || marginY >= 0) {
+		if (marginX < 0) marginX = 0;
+		if (marginY < 0) marginY = 0;
+		double allMarginX = marginX * 2 * config.numProblemsPerPageX;
+		double allMarginY = marginY * 2 * config.numProblemsPerPageY;
+		if (allMarginX > config.pageWidth || allMarginY > config.pageHeight) {
+			puts("margin too large");
+			return 1;
+		}
+		double sizeFromX = (config.pageWidth - allMarginX) / config.numProblemsPerPageX / 9.0;
+		double sizeFromY = (config.pageHeight - allMarginY) / config.numProblemsPerPageY / 9.0;
+		config.blockSize = (sizeFromX <= sizeFromY ? sizeFromX : sizeFromY);
+	}
+	if (auto_line_width) {
+		config.boldLineWidth = config.blockSize * 2.0 / 15.0;
+		config.normalLineWidth = config.blockSize * 0.7 / 15.0;
+		config.numberLineWidth = config.blockSize * 1.0 / 15.0;
 	}
 	if (!seed_set) {
 		uint32_t t = (uint32_t)time(NULL);
@@ -305,7 +402,7 @@ int main(int argc, char* argv[]) {
 			break;
 		case PDF:
 			{
-				std::string pdfData = create_pdf(nbs, seedString);
+				std::string pdfData = create_pdf(nbs, seedString, config);
 				fwrite(pdfData.data(), 1, pdfData.size(), fp);
 			}
 	}
