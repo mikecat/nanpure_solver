@@ -279,6 +279,7 @@ int main(int argc, char* argv[]) {
 	char* output_file = NULL;
 	pdf_config_t config;
 	bool auto_line_width = false;
+	bool auto_page_size = false;
 	double marginX = -1, marginY = -1;
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "--seed") == 0 || strcmp(argv[i], "-s") == 0) {
@@ -360,38 +361,55 @@ int main(int argc, char* argv[]) {
 #undef READ_NONNEGATIVE
 		} else if (strcmp(argv[i], "--pageSize") == 0) {
 			if (++i < argc) {
-				bool found = false;
-				for (int j = 0; papers[j].width > 0; j++) {
-					if (strcmp(argv[i], papers[j].name) == 0) {
-						config.pageWidth = papers[j].width;
-						config.pageHeight = papers[j].height;
-						found = true;
-						break;
+				if (strcmp(argv[i], "auto") == 0) {
+					auto_page_size = true;
+				} else {
+					bool found = false;
+					for (int j = 0; papers[j].width > 0; j++) {
+						if (strcmp(argv[i], papers[j].name) == 0) {
+							config.pageWidth = papers[j].width;
+							config.pageHeight = papers[j].height;
+							found = true;
+							break;
+						}
 					}
-				}
-				if (!found) {
-					printf("unknown page size name %s\n", argv[i]);
+					if (!found) {
+						printf("unknown page size name %s\n", argv[i]);
+						return 1;
+					}
+					auto_page_size = false;
 				}
 			} else {
 				puts("no page size name");
+				return 1;
 			}
 		} else {
 			printf("unknown parameter %s\n", argv[i]);
 			return 1;
 		}
 	}
+	if (auto_page_size) {
+		if (auto_line_width) config.boldLineWidth = config.blockSize * 2.0 / 15.0;
+		if (marginX < 0) marginX = config.boldLineWidth / 2.0;
+		if (marginY < 0) marginY = config.boldLineWidth / 2.0;
+	}
 	if (marginX >= 0 || marginY >= 0) {
 		if (marginX < 0) marginX = 0;
 		if (marginY < 0) marginY = 0;
 		double allMarginX = marginX * 2 * config.numProblemsPerPageX;
 		double allMarginY = marginY * 2 * config.numProblemsPerPageY;
-		if (allMarginX > config.pageWidth || allMarginY > config.pageHeight) {
-			puts("margin too large");
-			return 1;
+		if (auto_page_size) {
+			config.pageWidth = config.blockSize * 9 * config.numProblemsPerPageX + allMarginX;
+			config.pageHeight = config.blockSize * 9 * config.numProblemsPerPageY + allMarginY;
+		} else {
+			if (allMarginX > config.pageWidth || allMarginY > config.pageHeight) {
+				puts("margin too large");
+				return 1;
+			}
+			double sizeFromX = (config.pageWidth - allMarginX) / config.numProblemsPerPageX / 9.0;
+			double sizeFromY = (config.pageHeight - allMarginY) / config.numProblemsPerPageY / 9.0;
+			config.blockSize = (sizeFromX <= sizeFromY ? sizeFromX : sizeFromY);
 		}
-		double sizeFromX = (config.pageWidth - allMarginX) / config.numProblemsPerPageX / 9.0;
-		double sizeFromY = (config.pageHeight - allMarginY) / config.numProblemsPerPageY / 9.0;
-		config.blockSize = (sizeFromX <= sizeFromY ? sizeFromX : sizeFromY);
 	}
 	if (auto_line_width) {
 		config.boldLineWidth = config.blockSize * 2.0 / 15.0;
