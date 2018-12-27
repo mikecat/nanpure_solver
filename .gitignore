@@ -1,3 +1,5 @@
 *.o
 *.exe
 NanpureSolverDriver
+NanpureGeneratorDriver
+NanpureGeneratorXorshiftDriver
