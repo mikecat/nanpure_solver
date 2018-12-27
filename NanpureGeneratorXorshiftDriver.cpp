@@ -60,14 +60,19 @@ struct pdf_config_t {
 	double normalLineWidth;
 	double numberLineWidth;
 	double blockSize;
+	double innerMarginX;
+	double innerMarginY;
 	double innerMarginMulti;
+	bool useInnerMarginMulti;
 	unsigned int numProblemsPerPageX;
 	unsigned int numProblemsPerPageY;
 
 	pdf_config_t() :
 		pageWidth(210.0), pageHeight(297.0),
 		boldLineWidth(2.0), normalLineWidth(0.7), numberLineWidth(1.0),
-		blockSize(15.0), innerMarginMulti(2.0),
+		blockSize(15.0),
+		innerMarginX(0.0), innerMarginY(0.0), innerMarginMulti(2.0),
+		useInnerMarginMulti(true),
 		numProblemsPerPageX(1), numProblemsPerPageY(1) {}
 };
 
@@ -122,10 +127,18 @@ const pdf_config_t& config) {
 	double problemSize = blockSize * 9;
 	double allMarginX = pageWidth - problemSize * numProblemsPerPageX;
 	double allMarginY = pageHeight - problemSize * numProblemsPerPageY;
-	double outerMarginX = allMarginX / (2.0 + innerMarginMulti * (numProblemsPerPageX - 1));
-	double outerMarginY = allMarginY / (2.0 + innerMarginMulti * (numProblemsPerPageY - 1));
-	double innerMarginX = outerMarginX * innerMarginMulti;
-	double innerMarginY = outerMarginY * innerMarginMulti;
+	double outerMarginX, outerMarginY, innerMarginX, innerMarginY;
+	if (config.useInnerMarginMulti) {
+		outerMarginX = allMarginX / (2.0 + innerMarginMulti * (numProblemsPerPageX - 1));
+		outerMarginY = allMarginY / (2.0 + innerMarginMulti * (numProblemsPerPageY - 1));
+		innerMarginX = outerMarginX * innerMarginMulti;
+		innerMarginY = outerMarginY * innerMarginMulti;
+	} else {
+		innerMarginX = config.innerMarginX;
+		innerMarginY = config.innerMarginY;
+		outerMarginX = (allMarginX - innerMarginX * (numProblemsPerPageX - 1)) / 2.0;
+		outerMarginY = (allMarginY - innerMarginY * (numProblemsPerPageY - 1)) / 2.0;
+	}
 
 	std::string pdfData = "%PDF-1.4\r\n";
 	std::vector<std::string> pdfContents;
@@ -345,6 +358,7 @@ int main(int argc, char* argv[]) {
 		READ_POSITIVE(normalLineWidth, "%lf", "normal line width for PDF")
 		READ_POSITIVE(numberLineWidth, "%lf", "number line width for PDF")
 		READ_POSITIVE(blockSize, "%lf", "one block size for PDF")
+		READ_POSITIVE(innerMarginMulti, "%lf", "ratio of size of inner margin to outer margin for PDF")
 		READ_POSITIVE(numProblemsPerPageX, "%u", "number of columns of problems per one page of PDF")
 		READ_POSITIVE(numProblemsPerPageY, "%u", "number of rows of problems per one page of PDF")
 #undef READ_POSITIVE
@@ -388,8 +402,40 @@ int main(int argc, char* argv[]) {
 				puts("no page size name");
 				return 1;
 			}
-		} else if (strcmp(argv[i], "--noInnerDoubleMargin") == 0) {
-			config.innerMarginMulti = 1;
+		} else if (strcmp(argv[i], "--innerMarginX") == 0) {
+			if (++i < argc) {
+				if (sscanf(argv[i], "%lf", &config.innerMarginX) != 1 || config.innerMarginX < 0) {
+					puts("invalid horizontal inner margin for PDF");
+					return 1;
+				}
+				config.useInnerMarginMulti = false;
+			} else {
+				puts("no horizontal inner margin for PDF");
+				return 1;
+			}
+		} else if (strcmp(argv[i], "--innerMarginY") == 0) {
+			if (++i < argc) {
+				if (sscanf(argv[i], "%lf", &config.innerMarginY) != 1 || config.innerMarginY < 0) {
+					puts("invalid vertical inner margin for PDF");
+					return 1;
+				}
+				config.useInnerMarginMulti = false;
+			} else {
+				puts("no vertical inner margin for PDF");
+				return 1;
+			}
+		} else if (strcmp(argv[i], "--innerMargin") == 0) {
+			if (++i < argc) {
+				if (sscanf(argv[i], "%lf", &config.innerMarginX) != 1 || config.innerMarginX < 0) {
+					puts("invalid inner margin for PDF");
+					return 1;
+				}
+				config.innerMarginY = config.innerMarginX;
+				config.useInnerMarginMulti = false;
+			} else {
+				puts("no vertical inner margin for PDF");
+				return 1;
+			}
 		} else {
 			printf("unknown parameter %s\n", argv[i]);
 			return 1;
@@ -403,8 +449,14 @@ int main(int argc, char* argv[]) {
 	if (marginX >= 0 || marginY >= 0) {
 		if (marginX < 0) marginX = 0;
 		if (marginY < 0) marginY = 0;
-		double allMarginX = marginX * (2 + config.innerMarginMulti * (config.numProblemsPerPageX - 1));
-		double allMarginY = marginY * (2 + config.innerMarginMulti * (config.numProblemsPerPageY - 1));
+		double allMarginX, allMarginY;
+		if (config.useInnerMarginMulti) {
+			allMarginX = marginX * (2 + config.innerMarginMulti * (config.numProblemsPerPageX - 1));
+			allMarginY = marginY * (2 + config.innerMarginMulti * (config.numProblemsPerPageY - 1));
+		} else {
+			allMarginX = marginX * 2 + config.innerMarginX * (config.numProblemsPerPageX - 1);
+			allMarginY = marginY * 2 + config.innerMarginY * (config.numProblemsPerPageY - 1);
+		}
 		if (auto_page_size) {
 			config.pageWidth = config.blockSize * 9 * config.numProblemsPerPageX + allMarginX;
 			config.pageHeight = config.blockSize * 9 * config.numProblemsPerPageY + allMarginY;
